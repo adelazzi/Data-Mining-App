@@ -1,0 +1,10 @@
+numpy
+pandas
+matplotlib>=3.4.0
+scikit-learn>=1.0.0
+scipy>=1.7.0
+# For handling ARFF files if used
+liac-arff>=2.5.0
+# For advanced visualizations (optional)
+seaborn>=0.11.0
+ttkthemes
