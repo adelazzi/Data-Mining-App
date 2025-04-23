@@ -17,16 +17,16 @@ To install the required dependencies, run the following command:
 
 ```bash
 python -m pip install -r requirements.txt
-
+```
 Usage
 -----
 To start the application, follow these steps:
 
 1. Ensure all dependencies are installed.
 2. Run the following command to launch the application:
-   ```bash
+```bash
    python main.py
-
+```
 
 ### Example Workflow
 
@@ -44,7 +44,7 @@ Ensure you have **Python 3.7+** installed. All dependencies required for this pr
 To install the dependencies, run:
 ```bash
 python -m pip install -r requirements.txt
-
+```
 
 
 
