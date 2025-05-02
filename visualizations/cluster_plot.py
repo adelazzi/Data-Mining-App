@@ -114,6 +114,10 @@ def create_pam_plot(data, cluster_column='cluster', show_plot=True):
     """Create a visualization of PAM clustering results."""
     return create_cluster_plot(data, cluster_column, method='PAM', show_plot=show_plot)
 
+def create_dbscan_plot(data, cluster_column='cluster', show_plot=True):
+    """Create a visualization of DBSCAN clustering results."""
+    return create_cluster_plot(data, cluster_column, method='DBSCAN', show_plot=show_plot)
+
 def display_plot_in_window(fig, title="Clustering Visualization", parent=None):
     """
     Display a matplotlib figure in a maximizable Tkinter window.
