@@ -4,11 +4,11 @@ import tkinter as tk
 from tkinter import ttk, messagebox, colorchooser
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from sklearn.cluster import KMeans
+from sklearn.cluster import KMeans, DBSCAN
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import pdist, squareform, cdist
-from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot
+from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot, create_dbscan_plot
 
 def calculate_intra_cluster_distance(data, labels, centroids=None):
     """
@@ -244,6 +244,63 @@ def perform_pam_clustering(data, n_clusters=3, random_state=42, max_iter=100, vi
     
     return result_data, metrics
 
+def perform_dbscan_clustering(data, eps=0.5, min_samples=5, visualize=True):
+    """
+    Perform DBSCAN clustering on the given data.
+
+    Parameters:
+    -----------
+    data : pandas.DataFrame
+        The data to cluster
+    eps : float, default=0.5
+        The maximum distance between two samples for one to be considered as in the neighborhood of the other.
+    min_samples : int, default=5
+        The number of samples in a neighborhood for a point to be considered a core point.
+    visualize : bool, default=True
+        Whether to visualize the clustering results
+
+    Returns:
+    --------
+    pandas.DataFrame
+        The original data with an additional 'cluster' column
+    dict
+        Evaluation metrics
+    """
+    # Get numeric columns for clustering
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if not numeric_cols:
+        raise ValueError("No numeric columns found for clustering")
+
+    # Scale the data
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data[numeric_cols])
+
+    # Perform DBSCAN
+    dbscan = DBSCAN(eps=eps, min_samples=min_samples)
+    cluster_labels = dbscan.fit_predict(scaled_data)
+
+    # Add cluster labels to the original data
+    result_data = data.copy()
+    result_data['cluster'] = cluster_labels
+
+    # Calculate evaluation metrics
+    metrics = {}
+    n_clusters = len(set(cluster_labels)) - (1 if -1 in cluster_labels else 0)
+    if n_clusters > 1:
+        try:
+            metrics['silhouette'] = round(silhouette_score(scaled_data, cluster_labels), 3)
+        except Exception as e:
+            print(f"Error calculating silhouette score: {e}")
+    metrics['n_clusters'] = n_clusters
+    metrics['n_noise_points'] = list(cluster_labels).count(-1)
+
+    # Visualize if requested
+    if visualize:
+        create_dbscan_plot(result_data)
+
+    return result_data, metrics
+
 def show_clustering_dialog(parent, data, method="kmeans"):
     """
     Show a dialog for clustering parameters and perform clustering.
@@ -264,7 +321,7 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     """
     # Create a new dialog window with a modern look
     dialog = tk.Toplevel(parent)
-    method_name = 'K-means' if method == 'kmeans' else 'PAM'
+    method_name = 'K-means' if method == 'kmeans' else 'DBSCAN' if method == 'dbscan' else 'PAM'
     dialog.title(f"{method_name} Clustering")
     dialog.geometry("900x700")
     dialog.resizable(True, True)
@@ -514,8 +571,11 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     if method == "kmeans":
         method_specific_vars['max_iter'] = tk.IntVar(value=300)
         method_specific_vars['n_init'] = tk.IntVar(value=10)
-    else:  # PAM
+    elif method == "pam":
         method_specific_vars['max_iter'] = tk.IntVar(value=100)
+    elif method == "dbscan":
+        method_specific_vars['eps'] = tk.DoubleVar(value=0.5)
+        method_specific_vars['min_samples'] = tk.IntVar(value=5)
     
     # Helper function for creating parameter controls
     def create_parameter_row(parent, row, label_text, var, from_val, to_val, tooltip=""):
@@ -576,10 +636,11 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     row_idx = 1
     
     # Number of clusters
-    row_idx = create_parameter_row(
-        params_card, row_idx, "Number of clusters:", n_clusters_var, 2, 10,
-        "The number of clusters to form as well as the number of centroids to generate."
-    )
+    if method in ["kmeans", "pam"]:
+        row_idx = create_parameter_row(
+            params_card, row_idx, "Number of clusters:", n_clusters_var, 2, 10,
+            "The number of clusters to form as well as the number of centroids to generate."
+        )
     
     # Method-specific options
     if method == "kmeans":
@@ -587,15 +648,23 @@ def show_clustering_dialog(parent, data, method="kmeans"):
             params_card, row_idx, "Max iterations:", method_specific_vars['max_iter'], 100, 1000,
             "Maximum number of iterations of the k-means algorithm for a single run."
         )
-        
         row_idx = create_parameter_row(
             params_card, row_idx, "Number of initializations:", method_specific_vars['n_init'], 1, 20,
             "Number of time the k-means algorithm will be run with different centroid seeds."
         )
-    else:  # PAM
+    elif method == "pam":
         row_idx = create_parameter_row(
             params_card, row_idx, "Max iterations:", method_specific_vars['max_iter'], 50, 500,
             "Maximum number of iterations of the PAM algorithm."
+        )
+    elif method == "dbscan":
+        row_idx = create_parameter_row(
+            params_card, row_idx, "Epsilon (eps):", method_specific_vars['eps'], 0.1, 2.0,
+            "The maximum distance between two samples for them to be considered as in the same neighborhood."
+        )
+        row_idx = create_parameter_row(
+            params_card, row_idx, "Min samples:", method_specific_vars['min_samples'], 1, 20,
+            "The number of samples in a neighborhood for a point to be considered as a core point."
         )
     
     # Random state
@@ -688,12 +757,20 @@ def show_clustering_dialog(parent, data, method="kmeans"):
                     n_init=method_specific_vars['n_init'].get(),
                     visualize=visualize_var.get()
                 )
-            else:  # PAM
+            elif method == "pam":  # PAM
                 clustered_data, metrics = perform_pam_clustering(
                     filtered_data,
                     n_clusters=n_clusters_var.get(),
                     random_state=random_state_var.get(),
                     max_iter=method_specific_vars['max_iter'].get(),
+                    visualize=visualize_var.get()
+                )
+            
+            elif method == "dbscan":
+                clustered_data, metrics = perform_dbscan_clustering(
+                    filtered_data,
+                    eps=method_specific_vars['eps'].get(),
+                    min_samples=method_specific_vars['min_samples'].get(),
                     visualize=visualize_var.get()
                 )
             
@@ -751,58 +828,84 @@ def show_clustering_dialog(parent, data, method="kmeans"):
         if method == "kmeans":
             help_sections = [
                 ("What is K-means?", 
-                 "K-means clustering partitions data into k clusters where each observation belongs to "
-                 "the cluster with the nearest mean (cluster centroid)."),
-                
+                "K-means clustering partitions data into k clusters where each observation belongs to "
+                "the cluster with the nearest mean (cluster centroid)."),
+
                 ("Parameters Explained", """
-• Number of clusters: The number of clusters to form.
-• Max iterations: Maximum number of iterations for the algorithm to converge.
-• Number of initializations: How many times to run the algorithm with different initial centroids.
-• Random state: For reproducible results.
+        • Number of clusters: The number of clusters to form.
+        • Max iterations: Maximum number of iterations for the algorithm to converge.
+        • Number of initializations: How many times to run the algorithm with different initial centroids.
+        • Random state: For reproducible results.
                 """),
-                
+
                 ("How It Works", """
-1. The algorithm starts by initializing k points as cluster centers (centroids).
-2. It then assigns each data point to the nearest centroid.
-3. The centroids are recalculated as the mean of all points assigned to that cluster.
-4. Steps 2 and 3 are repeated until convergence or reaching max iterations.
+        1. The algorithm starts by initializing k points as cluster centers (centroids).
+        2. It then assigns each data point to the nearest centroid.
+        3. The centroids are recalculated as the mean of all points assigned to that cluster.
+        4. Steps 2 and 3 are repeated until convergence or reaching max iterations.
                 """),
-                
+
                 ("Tips", """
-• Try different numbers of clusters to find the optimal grouping.
-• Higher Silhouette Score indicates better-defined clusters (range -1 to 1).
-• Lower Intra-cluster distances indicate more compact clusters.
-• Higher Inter-cluster distances indicate better separated clusters.
-• K-means works best with spherical clusters of similar size.
+        • Try different numbers of clusters to find the optimal grouping.
+        • Higher Silhouette Score indicates better-defined clusters (range -1 to 1).
+        • Lower Intra-cluster distances indicate more compact clusters.
+        • Higher Inter-cluster distances indicate better separated clusters.
+        • K-means works best with spherical clusters of similar size.
                 """)
             ]
-        else:  # PAM
+        elif method == "pam":
             help_sections = [
                 ("What is PAM?", 
-                 "PAM (Partitioning Around Medoids) clustering is similar to K-means but uses actual data points "
-                 "(medoids) as the center of clusters, making it more robust to outliers."),
-                
+                "PAM (Partitioning Around Medoids) clustering is similar to K-means but uses actual data points "
+                "(medoids) as the center of clusters, making it more robust to outliers."),
+
                 ("Parameters Explained", """
-• Number of clusters: The number of clusters to form.
-• Max iterations: Maximum number of iterations for the algorithm to converge.
-• Random state: For reproducible results.
+        • Number of clusters: The number of clusters to form.
+        • Max iterations: Maximum number of iterations for the algorithm to converge.
+        • Random state: For reproducible results.
                 """),
-                
+
                 ("How It Works", """
-1. The algorithm starts by randomly selecting k data points as medoids.
-2. It then assigns each data point to the nearest medoid.
-3. For each cluster, the algorithm finds the point that minimizes the sum of distances to other points in the cluster.
-4. If a better medoid is found, it replaces the current one.
-5. Steps 2-4 are repeated until no change or reaching max iterations.
+        1. The algorithm starts by randomly selecting k data points as medoids.
+        2. It then assigns each data point to the nearest medoid.
+        3. For each cluster, the algorithm finds the point that minimizes the sum of distances to other points in the cluster.
+        4. If a better medoid is found, it replaces the current one.
+        5. Steps 2-4 are repeated until no change or reaching max iterations.
                 """),
-                
+
                 ("Tips", """
-• PAM is less sensitive to outliers than K-means.
-• Works well with smaller datasets.
-• Try different numbers of clusters to find the optimal grouping.
-• Higher Silhouette Score indicates better-defined clusters (range -1 to 1).
-• Lower Intra-cluster distances indicate more compact clusters.
-• Higher Inter-cluster distances indicate better separated clusters.
+        • PAM is less sensitive to outliers than K-means.
+        • Works well with smaller datasets.
+        • Try different numbers of clusters to find the optimal grouping.
+        • Higher Silhouette Score indicates better-defined clusters (range -1 to 1).
+        • Lower Intra-cluster distances indicate more compact clusters.
+        • Higher Inter-cluster distances indicate better separated clusters.
+                """)
+            ]
+        elif method == "dbscan":
+            help_sections = [
+                ("What is DBSCAN?", 
+                "DBSCAN (Density-Based Spatial Clustering of Applications with Noise) is a density-based clustering algorithm. "
+                "It groups points that are closely packed together, marking outliers as noise."),
+
+                ("Parameters Explained", """
+        • Epsilon (eps): The maximum distance between two samples for them to be considered as in the same neighborhood.
+        • Min samples: The number of samples in a neighborhood for a point to be considered as a core point.
+        • Random state: For reproducible results.
+                """),
+
+                ("How It Works", """
+        1. The algorithm starts by selecting a random point and finding all points within epsilon (eps) distance.
+        2. If the number of points in the neighborhood exceeds the min_samples threshold, a cluster is formed.
+        3. Points that are reachable from other points are assigned to the cluster; others are considered noise.
+        4. Steps 1-3 continue until all points are processed.
+                """),
+
+                ("Tips", """
+        • DBSCAN works well for datasets with noise and clusters of arbitrary shape.
+        • Choosing the right eps and min_samples is crucial for good clustering.
+        • You can use the silhouette score or other metrics to evaluate the clustering quality.
+        • DBSCAN does not require specifying the number of clusters upfront, making it useful for data with unknown cluster counts.
                 """)
             ]
         

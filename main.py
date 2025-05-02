@@ -184,6 +184,7 @@ class DataVisualizationApp:
         self.clustering_menu = tk.Menu(self.menu_bar, tearoff=0)
         self.clustering_menu.add_command(label="K-Means Clustering", command=self.perform_kmeans_clustering)
         self.clustering_menu.add_command(label="PAM Clustering", command=self.perform_pam_clustering)
+        self.clustering_menu.add_command(label="DBSCAN Clustering", command=self.perform_dbscan_clustering)
         self.menu_bar.add_cascade(label="Clustering", menu=self.clustering_menu)
 
     def setup_visualize_menu(self):
@@ -637,6 +638,28 @@ class DataVisualizationApp:
         except Exception as e:
             messagebox.showerror("Error", f"Failed to perform PAM clustering: {str(e)}")
     
+    def perform_dbscan_clustering(self):
+        """Perform DBSCAN clustering on the current dataset"""
+        if self.current_data is None:
+            messagebox.showinfo("No Data", "Please load a dataset first.")
+            return
+        
+        try:
+            result = show_clustering_dialog(self.root, self.current_data, "dbscan")
+            if result is not None:
+                clustered_data, n_clusters, metrics = result
+                self.current_data = clustered_data
+                self.update_data_view()
+                
+                # Show metrics in a message box
+                metrics_text = "\n".join([f"{k}: {v}" for k, v in metrics.items()])
+                messagebox.showinfo("Clustering Results", f"DBSCAN clustering completed with {n_clusters} clusters.\n\nMetrics:\n{metrics_text}")
+
+                self.update_status(f"DBSCAN clustering completed with {n_clusters} clusters.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to perform DBSCAN clustering: {str(e)}")
+
     def show_box_plot(self):
         """Show a box plot of the current dataset"""
         if self.current_data is None:
