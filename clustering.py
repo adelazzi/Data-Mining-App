@@ -1028,11 +1028,18 @@ def show_clustering_dialog(parent, data, method="kmeans"):
             if method in ['agnes', 'diana']:
                 import tkinter.messagebox as messagebox
                 if messagebox.askyesno("Show Dendrogram", "Would you like to see the hierarchical clustering dendrogram?"):
-                    show_dendrogram(
-                        filtered_data, 
-                        linkage=method_specific_vars['linkage'].get(),
-                        affinity=method_specific_vars['affinity'].get()
-                    )
+                    if method == 'agnes':
+                        show_dendrogram(
+                            filtered_data, 
+                            method='agnes',
+                            linkage=method_specific_vars['linkage'].get(),
+                            affinity=method_specific_vars['affinity'].get()
+                        )
+                    if method == 'diana':
+                        show_dendrogram(
+                            filtered_data,
+                            method='diana',
+                        )
             
             # Store result and close dialog
             result[0] = (result_data, n_clusters_var.get(), metrics)
