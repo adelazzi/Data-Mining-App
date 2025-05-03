@@ -1009,6 +1009,13 @@ def show_clustering_dialog(parent, data, method="kmeans"):
                     affinity=method_specific_vars['affinity'].get(),
                     visualize=visualize_var.get()
                 )
+
+            elif method == "diana":
+                clustered_data, metrics = perform_diana_clustering(
+                    filtered_data,
+                    n_clusters=n_clusters_var.get(),
+                    visualize=visualize_var.get()
+                )
             
             # Add the cluster column to the original data
             result_data = data.copy()

@@ -270,6 +270,215 @@ def create_agnes_dendrogram(data, method='ward', affinity='euclidean', show_plot
     
     return fig
 
+def create_diana_dendrogram(data, show_plot=True):
+    """
+    Create a modern, professional dendrogram visualization for hierarchical clustering using DIANA.
+    
+    Parameters:
+    -----------
+    data : pandas.DataFrame
+        The data to create dendrogram for
+    show_plot : bool, default=True
+        Whether to display the plot immediately
+        
+    Returns:
+    --------
+    matplotlib.figure.Figure
+        The figure object
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    from scipy.cluster.hierarchy import dendrogram
+    from sklearn.preprocessing import StandardScaler
+    
+    # Set modern style
+    plt.style.use('seaborn-v0_8-whitegrid')
+    
+    # Modern color palette
+    colors = {
+        'background': '#FFFFFF',
+        'text': '#333333',
+        'grid': '#EEEEEE',
+        'line': '#505050',
+        'highlight': '#2980b9',
+        'accent': '#3498db',
+        'dendrogram': '#2c3e50'
+    }
+    
+    # Get numeric columns for clustering
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if not numeric_cols:
+        raise ValueError("No numeric columns found for clustering")
+    
+    # Scale the data
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data[numeric_cols])
+    
+    # Create DIANA method for hierarchical clustering (or use divisive if available)
+    def divisive(data):
+        '''
+        Perform the DIANA (Divisive Analysis) algorithm for hierarchical clustering.
+
+        Arguments
+        ----------
+        data : pandas.DataFrame
+            The dataset for clustering
+
+        Returns
+        -------
+        Z : numpy.ndarray
+            The linkage matrix for hierarchical clustering
+        '''
+        from diana_clustering.distance_matrix import DistanceMatrix
+
+        # Create the similarity matrix using the DistanceMatrix class
+        similarity_matrix = DistanceMatrix(data)
+        n_samples = data.shape[0]
+
+        # Initial cluster is the entire dataset
+        clusters = [list(range(n_samples))]
+        
+        # Create an empty list to store the linkage matrix
+        linkage_matrix = []
+        
+        while len(clusters) < n_samples:
+            # Calculate the diameters (max distance) for each cluster
+            cluster_diameters = [np.max(similarity_matrix[cluster][:, cluster]) for cluster in clusters]
+            
+            # Find the cluster with the maximum diameter
+            max_cluster_idx = np.argmax(cluster_diameters)
+            
+            # Find the element with the maximum distance to its other members (most different)
+            max_difference_idx = np.argmax(np.mean(similarity_matrix[clusters[max_cluster_idx]][:, clusters[max_cluster_idx]], axis=1))
+            
+            # Create the "splinter" group, starting with the most different element
+            splinter_group = [clusters[max_cluster_idx][max_difference_idx]]
+            
+            # Remove the chosen element from the current cluster
+            last_cluster = clusters[max_cluster_idx]
+            del last_cluster[max_difference_idx]
+            
+            # Now, attempt to further split the cluster by iterating over the remaining elements
+            while True:
+                split = False
+                for j in range(len(last_cluster) - 1, -1, -1):
+                    # Calculate distances from the current element to the splinter group and the remaining cluster
+                    splinter_distances = similarity_matrix[last_cluster[j], splinter_group]
+                    remaining_distances = similarity_matrix[last_cluster[j], np.delete(last_cluster, j, axis=0)]
+                    
+                    # If the average distance to the splinter group is smaller than to the rest, move it to the splinter group
+                    if np.mean(splinter_distances) <= np.mean(remaining_distances):
+                        splinter_group.append(last_cluster[j])
+                        del last_cluster[j]
+                        split = True
+                        break
+                
+                if not split:
+                    break
+            
+            # Update the list of clusters: replace the largest cluster with the new splinter group and the rest of the elements
+            del clusters[max_cluster_idx]
+            clusters.append(splinter_group)
+            clusters.append(last_cluster)
+            
+            # Record the split in the linkage matrix (format: [cluster1, cluster2, distance, num_elements])
+            dist = np.max(similarity_matrix[splinter_group][:, splinter_group])
+            linkage_matrix.append([len(clusters) - 2, len(clusters) - 1, dist, len(splinter_group) + len(last_cluster)])
+        
+        # Convert the linkage matrix to a numpy array for compatibility with scipy dendrogram function
+        Z = np.array(linkage_matrix)
+        
+        return Z
+
+    Z = divisive(scaled_data)
+
+    # Create figure for the dendrogram with high-resolution and modern aspect
+    fig = plt.figure(figsize=(14, 8), dpi=100, facecolor=colors['background'])
+    
+    # Create a single subplot with specific style
+    ax = fig.add_subplot(111, facecolor=colors['background'])
+    
+    # Set background color
+    fig.patch.set_facecolor(colors['background'])
+    
+    # Create the dendrogram with modern colors
+    dendrogram(
+        Z,
+        ax=ax,
+        leaf_rotation=90,
+        leaf_font_size=10,
+        color_threshold=0.7*max(Z[:,2]),  # Color threshold for better visualization
+        above_threshold_color=colors['line'],
+        orientation='top',
+        distance_sort='descending',
+        show_leaf_counts=True,
+        no_labels=False if len(data) < 50 else True,  # Hide labels for large datasets
+        labels=None if len(data) >= 50 else [f"Sample {i}" for i in range(len(data))],
+    )
+    
+    # Add title and labels with modern typography
+    ax.set_title(f'Divisive Hierarchical Clustering Dendrogram',
+                fontsize=16, 
+                color=colors['text'],
+                fontweight='bold',
+                pad=20)
+    
+    ax.set_xlabel('Samples', fontsize=14, color=colors['text'], labelpad=15)
+    ax.set_ylabel('Distance', fontsize=14, color=colors['text'], labelpad=15)
+    
+    # Add annotations for better interpretation
+    if len(data) < 100:  # Only for reasonably sized datasets
+        largest_dist = max(Z[:,2])
+        ax.axhline(y=0.7*largest_dist, c=colors['highlight'], linestyle='--', alpha=0.7)
+        ax.text(len(data)/2, 0.71*largest_dist, 
+                'Recommended\nClustering Level', 
+                ha='center', va='bottom', 
+                color=colors['highlight'], 
+                fontsize=11,
+                bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    # Add legend in modern style
+    legend_elements = [
+        plt.Line2D([0], [0], color=colors['dendrogram'], lw=4, label='Cluster Branch'),
+        plt.Line2D([0], [0], color=colors['highlight'], lw=2, linestyle='--', label='Recommended Cut')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', frameon=True, 
+             fancybox=True, shadow=True, fontsize=10)
+    
+    # Style the spines (edges)
+    for spine in ax.spines.values():
+        spine.set_color(colors['grid'])
+        spine.set_linewidth(0.5)
+    
+    # Style the grid
+    ax.grid(True, linestyle='--', alpha=0.7, color=colors['grid'])
+    
+    # Style the ticks
+    ax.tick_params(colors=colors['text'], labelsize=10)
+    
+    # Optimize layout
+    plt.tight_layout()
+    
+    # Add watermark or label in bottom corner
+    fig.text(0.98, 0.02, 'Hierarchical Clustering Analysis', 
+            fontsize=8, color=colors['text'], alpha=0.5, ha='right')
+    
+    # Add interpretation note
+    interpretation_text = (
+        "Interpretation: The dendrogram shows hierarchical relationships between clusters.\n"
+        "The height (y-axis) represents the distance at which clusters are merged."
+    )
+    
+    fig.text(0.02, 0.02, interpretation_text, 
+             fontsize=9, color=colors['text'], alpha=0.7, ha='left',
+             bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    if show_plot:
+        plt.show()
+    
+    return fig
+
 def display_plot_in_window(fig, title="Clustering Visualization", parent=None):
     """
     Display a matplotlib figure in a maximizable Tkinter window.
