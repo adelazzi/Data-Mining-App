@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans, DBSCAN
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import pdist, squareform, cdist
-from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot, create_dbscan_plot
+from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot, create_dbscan_plot,create_agnes_plot
 
 def calculate_intra_cluster_distance(data, labels, centroids=None):
     """
@@ -301,6 +301,104 @@ def perform_dbscan_clustering(data, eps=0.5, min_samples=5, visualize=True):
 
     return result_data, metrics
 
+def perform_agnes_clustering(data, n_clusters=3, linkage='ward', affinity='euclidean', visualize=True):
+    """
+    Perform AGNES (Agglomerative Hierarchical Clustering) on the given data.
+    
+    Parameters:
+    -----------
+    data : pandas.DataFrame
+        The data to cluster
+    n_clusters : int, default=3
+        Number of clusters to form
+    linkage : str, default='ward'
+        Linkage criterion to use: 'ward', 'complete', 'average', 'single'
+    affinity : str, default='euclidean'
+        Metric used to compute the linkage: 'euclidean', 'l1', 'l2', 'manhattan', 'cosine'
+    visualize : bool, default=True
+        Whether to visualize the clustering results
+        
+    Returns:
+    --------
+    pandas.DataFrame
+        The original data with an additional 'cluster' column
+    dict
+        Evaluation metrics
+    """
+    from sklearn.cluster import AgglomerativeClustering
+    
+    # Get numeric columns for clustering
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if not numeric_cols:
+        raise ValueError("No numeric columns found for clustering")
+    
+    # Scale the data
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data[numeric_cols])
+    
+    # Perform AGNES clustering
+    # Note: 'ward' linkage only works with euclidean affinity
+    if linkage == 'ward':
+        agnes = AgglomerativeClustering(
+            n_clusters=n_clusters,
+            linkage=linkage
+        )
+    else:
+        agnes = AgglomerativeClustering(
+            n_clusters=n_clusters,
+            linkage=linkage,
+            affinity=affinity
+        )
+        
+    cluster_labels = agnes.fit_predict(scaled_data)
+    
+    # Add cluster labels to the original data
+    result_data = data.copy()
+    result_data['cluster'] = cluster_labels
+    
+    # Calculate evaluation metrics
+    metrics = {}
+    if len(data) > n_clusters:  # Metrics require more samples than clusters
+        try:
+            metrics['silhouette'] = round(silhouette_score(scaled_data, cluster_labels), 3)
+            metrics['intra_cluster'] = round(calculate_intra_cluster_distance(scaled_data, cluster_labels), 3)
+            metrics['inter_cluster'] = round(calculate_inter_cluster_distance(scaled_data, cluster_labels), 3)
+        except Exception as e:
+            print(f"Error calculating clustering metrics: {e}")
+    
+    # Store linkage and affinity in metrics for dendrogram visualization
+    metrics['linkage'] = linkage
+    metrics['affinity'] = affinity
+    
+    # Visualize if requested
+    if visualize:
+        create_agnes_plot(result_data)
+    
+    return result_data, metrics
+
+def show_dendrogram(data, linkage='ward', affinity='euclidean'):
+    """
+    Show a dendrogram visualization for hierarchical clustering.
+    
+    Parameters:
+    -----------
+    data : pandas.DataFrame
+        The data to visualize
+    linkage : str, default='ward'
+        Linkage criterion to use: 'ward', 'complete', 'average', 'single'
+    affinity : str, default='euclidean'
+        Metric used to compute the linkage
+    """
+    from visualizations.cluster_plot import create_dendrogram, display_plot_in_window
+    
+    try:
+        fig = create_dendrogram(data, method=linkage, affinity=affinity, show_plot=False)
+        display_plot_in_window(fig, title=f'Hierarchical Clustering Dendrogram ({linkage} linkage)')
+    except Exception as e:
+        import tkinter.messagebox as messagebox
+        messagebox.showerror("Error", f"Failed to create dendrogram: {str(e)}")
+
 def show_clustering_dialog(parent, data, method="kmeans"):
     """
     Show a dialog for clustering parameters and perform clustering.
@@ -321,7 +419,7 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     """
     # Create a new dialog window with a modern look
     dialog = tk.Toplevel(parent)
-    method_name = 'K-means' if method == 'kmeans' else 'DBSCAN' if method == 'dbscan' else 'PAM'
+    method_name = 'K-means' if method == 'kmeans' else 'PAM' if method == 'pam' else 'DBSCAN' if method == 'dbscan' else 'AGNES'
     dialog.title(f"{method_name} Clustering")
     dialog.geometry("900x700")
     dialog.resizable(True, True)
@@ -576,6 +674,9 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     elif method == "dbscan":
         method_specific_vars['eps'] = tk.DoubleVar(value=0.5)
         method_specific_vars['min_samples'] = tk.IntVar(value=5)
+    elif method == "agnes":
+        method_specific_vars['linkage'] = tk.StringVar(value='ward')
+        method_specific_vars['affinity'] = tk.StringVar(value='euclidean')
     
     # Helper function for creating parameter controls
     def create_parameter_row(parent, row, label_text, var, from_val, to_val, tooltip=""):
@@ -632,11 +733,52 @@ def show_clustering_dialog(parent, data, method="kmeans"):
         
         return row + 1
     
+    # Helper function for creating dropdown parameters
+    def create_dropdown_row(parent, row, label_text, var, values, tooltip=""):
+        # Label
+        param_label = ttk.Label(parent, text=label_text, style='Card.TLabel')
+        param_label.grid(row=row, column=0, sticky="w", pady=(10, 0))
+        
+        # Add tooltip if provided
+        if tooltip:
+            # Same tooltip functionality as above
+            def show_tooltip(event):
+                x, y, _, _ = param_label.bbox("insert")
+                x += param_label.winfo_rootx() + 25
+                y += param_label.winfo_rooty() + 25
+                
+                tip_window = tk.Toplevel(param_label)
+                tip_window.wm_overrideredirect(True)
+                tip_window.wm_geometry(f"+{x}+{y}")
+                
+                tip_frame = ttk.Frame(tip_window, style='Card.TFrame', padding=5)
+                tip_frame.pack()
+                
+                tip_text = ttk.Label(tip_frame, text=tooltip, 
+                                   justify=tk.LEFT, wraplength=300,
+                                   style='Card.TLabel')
+                tip_text.pack()
+                
+                def hide_tooltip():
+                    tip_window.destroy()
+                
+                tip_text.bind("<Leave>", lambda e: hide_tooltip())
+                param_label.bind("<Leave>", lambda e: hide_tooltip())
+                tip_window.bind("<Leave>", lambda e: hide_tooltip())
+            
+            param_label.bind("<Enter>", show_tooltip)
+        
+        # Combobox for dropdown
+        dropdown = ttk.Combobox(parent, textvariable=var, values=values, state="readonly", width=15)
+        dropdown.grid(row=row, column=1, sticky="w", pady=(10, 0), padx=(10, 10))
+        
+        return row + 1
+    
     # Add parameters with tooltips
     row_idx = 1
     
     # Number of clusters
-    if method in ["kmeans", "pam"]:
+    if method in ["kmeans", "pam", "agnes"]:
         row_idx = create_parameter_row(
             params_card, row_idx, "Number of clusters:", n_clusters_var, 2, 10,
             "The number of clusters to form as well as the number of centroids to generate."
@@ -665,6 +807,17 @@ def show_clustering_dialog(parent, data, method="kmeans"):
         row_idx = create_parameter_row(
             params_card, row_idx, "Min samples:", method_specific_vars['min_samples'], 1, 20,
             "The number of samples in a neighborhood for a point to be considered as a core point."
+        )
+    elif method == "agnes":
+        row_idx = create_dropdown_row(
+            params_card, row_idx, "Linkage:", method_specific_vars['linkage'], 
+            ['ward', 'complete', 'average', 'single'],
+            "Linkage criterion to use: 'ward' minimizes variance, 'complete' uses maximum distances, 'average' uses average distances, 'single' uses minimum distances."
+        )
+        row_idx = create_dropdown_row(
+            params_card, row_idx, "Affinity:", method_specific_vars['affinity'], 
+            ['euclidean', 'l1', 'l2', 'manhattan', 'cosine'],
+            "Metric used to compute the linkage. Note that 'ward' linkage only supports 'euclidean' affinity."
         )
     
     # Random state
@@ -774,12 +927,31 @@ def show_clustering_dialog(parent, data, method="kmeans"):
                     visualize=visualize_var.get()
                 )
             
+            elif method == "agnes":
+                clustered_data, metrics = perform_agnes_clustering(
+                    filtered_data,
+                    n_clusters=n_clusters_var.get(),
+                    linkage=method_specific_vars['linkage'].get(),
+                    affinity=method_specific_vars['affinity'].get(),
+                    visualize=visualize_var.get()
+                )
+            
             # Add the cluster column to the original data
             result_data = data.copy()
             result_data['cluster'] = clustered_data['cluster']
             
             # Close progress window
             progress_window.destroy()
+            
+            # For AGNES, offer to show dendrogram
+            if method == "agnes":
+                import tkinter.messagebox as messagebox
+                if messagebox.askyesno("Show Dendrogram", "Would you like to see the hierarchical clustering dendrogram?"):
+                    show_dendrogram(
+                        filtered_data, 
+                        linkage=method_specific_vars['linkage'].get(),
+                        affinity=method_specific_vars['affinity'].get()
+                    )
             
             # Store result and close dialog
             result[0] = (result_data, n_clusters_var.get(), metrics)
@@ -906,6 +1078,38 @@ def show_clustering_dialog(parent, data, method="kmeans"):
         • Choosing the right eps and min_samples is crucial for good clustering.
         • You can use the silhouette score or other metrics to evaluate the clustering quality.
         • DBSCAN does not require specifying the number of clusters upfront, making it useful for data with unknown cluster counts.
+                """)
+            ]
+        elif method == "agnes":
+            help_sections = [
+                ("What is AGNES?", 
+                "AGNES (Agglomerative Nesting or Hierarchical Clustering) builds a hierarchy of clusters starting with each data point as its own cluster and progressively merging clusters."),
+
+                ("Parameters Explained", """
+        • Number of clusters: The final number of clusters to form.
+        • Linkage: Determines which distance metric to use between sets of observations:
+          - Ward: Minimizes the variance of clusters being merged (default)
+          - Complete: Uses the maximum distances between all observations of two clusters
+          - Average: Uses the average distances between all observations of two clusters
+          - Single: Uses the minimum distances between all observations of two clusters
+        • Affinity: The metric used to compute the linkage (euclidean, manhattan, cosine, etc.)
+        • Random state: For reproducible results.
+                """),
+
+                ("How It Works", """
+        1. The algorithm starts by assigning each data point to its own cluster.
+        2. It then iteratively merges the two most similar clusters based on the chosen linkage criterion.
+        3. This process continues until the specified number of clusters is reached.
+        4. The result is a dendrogram-like structure showing the hierarchical clustering.
+                """),
+
+                ("Tips", """
+        • AGNES can identify hierarchical structures in data that other methods might miss.
+        • Ward linkage tends to create more balanced, equal-sized clusters.
+        • Different linkage criteria create different cluster shapes: try several to find the best for your data.
+        • Higher Silhouette Score indicates better-defined clusters (range -1 to 1).
+        • If using ward linkage, you must use euclidean affinity.
+        • Hierarchical clustering can be interpreted at different levels of the hierarchy.
                 """)
             ]
         

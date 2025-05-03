@@ -118,6 +118,155 @@ def create_dbscan_plot(data, cluster_column='cluster', show_plot=True):
     """Create a visualization of DBSCAN clustering results."""
     return create_cluster_plot(data, cluster_column, method='DBSCAN', show_plot=show_plot)
 
+def create_agnes_plot(data, cluster_column='cluster', show_plot=True):
+    """Create a visualization of AGNES (Agglomerative Hierarchical Clustering) results."""
+    return create_cluster_plot(data, cluster_column, method='AGNES', show_plot=show_plot)
+
+def create_dendrogram(data, method='ward', affinity='euclidean', show_plot=True):
+    """
+    Create a modern, professional dendrogram visualization for hierarchical clustering.
+    
+    Parameters:
+    -----------
+    data : pandas.DataFrame
+        The data to create dendrogram for
+    method : str, default='ward'
+        Linkage method to use: 'ward', 'complete', 'average', 'single'
+    affinity : str, default='euclidean'
+        Distance metric to use
+    show_plot : bool, default=True
+        Whether to display the plot immediately
+        
+    Returns:
+    --------
+    matplotlib.figure.Figure
+        The figure object
+    """
+    import numpy as np
+    import matplotlib.pyplot as plt
+    import matplotlib as mpl
+    from scipy.cluster.hierarchy import dendrogram, linkage
+    from sklearn.preprocessing import StandardScaler
+    
+    # Set modern style
+    plt.style.use('seaborn-v0_8-whitegrid')
+    
+    # Modern color palette
+    colors = {
+        'background': '#FFFFFF',
+        'text': '#333333',
+        'grid': '#EEEEEE',
+        'line': '#505050',
+        'highlight': '#2980b9',
+        'accent': '#3498db',
+        'dendrogram': '#2c3e50'
+    }
+    
+    # Get numeric columns for clustering
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if not numeric_cols:
+        raise ValueError("No numeric columns found for clustering")
+    
+    # Scale the data
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data[numeric_cols])
+    
+    # Create linkage matrix using scipy's hierarchical clustering
+    if method == 'ward' and affinity != 'euclidean':
+        print("Warning: Ward linkage only works with Euclidean distance. Using Euclidean.")
+        affinity = 'euclidean'
+    
+    # Compute the linkage matrix
+    Z = linkage(scaled_data, method=method, metric=affinity if method != 'ward' else 'euclidean')
+    
+    # Create figure for the dendrogram with high-resolution and modern aspect
+    fig = plt.figure(figsize=(14, 8), dpi=100, facecolor=colors['background'])
+    
+    # Create a single subplot with specific style
+    ax = fig.add_subplot(111, facecolor=colors['background'])
+    
+    # Set background color
+    fig.patch.set_facecolor(colors['background'])
+    
+    # Create the dendrogram with modern colors
+    dendrogram(
+        Z,
+        ax=ax,
+        leaf_rotation=90,
+        leaf_font_size=10,
+        color_threshold=0.7*max(Z[:,2]),  # Color threshold for better visualization
+        above_threshold_color=colors['line'],
+        orientation='top',
+        distance_sort='descending',
+        show_leaf_counts=True,
+        no_labels=False if len(data) < 50 else True,  # Hide labels for large datasets
+        labels=None if len(data) >= 50 else [f"Sample {i}" for i in range(len(data))],
+    )
+    
+    # Add title and labels with modern typography
+    ax.set_title(f'Hierarchical Clustering Dendrogram\n{method.capitalize()} Linkage / {affinity.capitalize()} Distance', 
+                fontsize=16, 
+                color=colors['text'],
+                fontweight='bold',
+                pad=20)
+    
+    ax.set_xlabel('Samples', fontsize=14, color=colors['text'], labelpad=15)
+    ax.set_ylabel('Distance', fontsize=14, color=colors['text'], labelpad=15)
+    
+    # Add annotations for better interpretation
+    if len(data) < 100:  # Only for reasonably sized datasets
+        largest_dist = max(Z[:,2])
+        ax.axhline(y=0.7*largest_dist, c=colors['highlight'], linestyle='--', alpha=0.7)
+        ax.text(len(data)/2, 0.71*largest_dist, 
+                'Recommended\nClustering Level', 
+                ha='center', va='bottom', 
+                color=colors['highlight'], 
+                fontsize=11,
+                bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    # Add legend in modern style
+    legend_elements = [
+        plt.Line2D([0], [0], color=colors['dendrogram'], lw=4, label='Cluster Branch'),
+        plt.Line2D([0], [0], color=colors['highlight'], lw=2, linestyle='--', label='Recommended Cut')
+    ]
+    ax.legend(handles=legend_elements, loc='upper right', frameon=True, 
+             fancybox=True, shadow=True, fontsize=10)
+    
+    # Style the spines (edges)
+    for spine in ax.spines.values():
+        spine.set_color(colors['grid'])
+        spine.set_linewidth(0.5)
+    
+    # Style the grid
+    ax.grid(True, linestyle='--', alpha=0.7, color=colors['grid'])
+    
+    # Style the ticks
+    ax.tick_params(colors=colors['text'], labelsize=10)
+    
+    # Optimize layout
+    plt.tight_layout()
+    
+    # Add watermark or label in bottom corner
+    fig.text(0.98, 0.02, 'Hierarchical Clustering Analysis', 
+            fontsize=8, color=colors['text'], alpha=0.5, ha='right')
+    
+    # Add interpretation note
+    interpretation_text = (
+        "Interpretation: The dendrogram shows hierarchical relationships between clusters.\n"
+        f"Clusters are formed using {method} linkage criterion with {affinity} distance metric.\n"
+        "The height (y-axis) represents the distance at which clusters are merged."
+    )
+    
+    fig.text(0.02, 0.02, interpretation_text, 
+             fontsize=9, color=colors['text'], alpha=0.7, ha='left',
+             bbox=dict(facecolor='white', alpha=0.8, boxstyle='round,pad=0.5'))
+    
+    if show_plot:
+        plt.show()
+    
+    return fig
+
 def display_plot_in_window(fig, title="Clustering Visualization", parent=None):
     """
     Display a matplotlib figure in a maximizable Tkinter window.

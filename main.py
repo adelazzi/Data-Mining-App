@@ -6,7 +6,7 @@ import numpy as np
 from visualizations.box_plot import create_box_plot
 from visualizations.qq_plot import create_qq_plot
 from visualizations.scatter_plot import create_scatter_plot
-from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot
+from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot, create_dbscan_plot, create_agnes_plot
 from data_loader import load_dataset
 from data_preprocessor import (
     clean_data, normalize_data, handle_missing_values, 
@@ -20,6 +20,8 @@ from classification import (
 from clustering import (
     perform_kmeans_clustering, 
     perform_pam_clustering,
+    perform_dbscan_clustering,
+    perform_agnes_clustering,
     show_clustering_dialog
 )
 
@@ -185,6 +187,7 @@ class DataVisualizationApp:
         self.clustering_menu.add_command(label="K-Means Clustering", command=self.perform_kmeans_clustering)
         self.clustering_menu.add_command(label="PAM Clustering", command=self.perform_pam_clustering)
         self.clustering_menu.add_command(label="DBSCAN Clustering", command=self.perform_dbscan_clustering)
+        self.clustering_menu.add_command(label="AGNES Clustering", command=self.perform_agnes_clustering)
         self.menu_bar.add_cascade(label="Clustering", menu=self.clustering_menu)
 
     def setup_visualize_menu(self):
@@ -659,6 +662,28 @@ class DataVisualizationApp:
                 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to perform DBSCAN clustering: {str(e)}")
+
+    def perform_agnes_clustering(self):
+        """Perform AGNES clustering on the current dataset"""
+        if self.current_data is None:
+            messagebox.showinfo("No Data", "Please load a dataset first.")
+            return
+        
+        try:
+            result = show_clustering_dialog(self.root, self.current_data, "agnes")
+            if result is not None:
+                clustered_data, n_clusters, metrics = result
+                self.current_data = clustered_data
+                self.update_data_view()
+                
+                # Show metrics in a message box
+                metrics_text = "\n".join([f"{k}: {v}" for k, v in metrics.items()])
+                messagebox.showinfo("Clustering Results", f"AGNES clustering completed with {n_clusters} clusters.\n\nMetrics:\n{metrics_text}")
+
+                self.update_status(f"AGNES clustering completed with {n_clusters} clusters.")
+                
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to perform AGNES clustering: {str(e)}")
 
     def show_box_plot(self):
         """Show a box plot of the current dataset"""
