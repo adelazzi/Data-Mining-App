@@ -8,7 +8,7 @@ from sklearn.cluster import KMeans, DBSCAN
 from sklearn.metrics import silhouette_score
 from sklearn.preprocessing import StandardScaler
 from scipy.spatial.distance import pdist, squareform, cdist
-from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot, create_dbscan_plot,create_agnes_plot
+from visualizations.cluster_plot import create_kmeans_plot, create_pam_plot, create_dbscan_plot, create_agnes_plot, create_diana_plot
 
 def calculate_intra_cluster_distance(data, labels, centroids=None):
     """
@@ -377,24 +377,94 @@ def perform_agnes_clustering(data, n_clusters=3, linkage='ward', affinity='eucli
     
     return result_data, metrics
 
-def show_dendrogram(data, linkage='ward', affinity='euclidean'):
+def perform_diana_clustering(data, n_clusters=3, visualize=True):
+    """
+    Perform DIANA (Divisive Hierarchical Clustering) on the given data.
+    
+    Parameters:
+    -----------
+    data : pandas.DataFrame
+        The data to cluster
+    n_clusters : int, default=3
+        Number of clusters to form
+    visualize : bool, default=True
+        Whether to visualize the clustering results
+        
+    Returns:
+    --------
+    pandas.DataFrame
+        The original data with an additional 'cluster' column
+    dict
+        Evaluation metrics
+    """
+    from sklearn.preprocessing import StandardScaler
+    from sklearn.metrics import silhouette_score
+    from diana_clustering.algorithm import Diana
+
+    # Get numeric columns for clustering
+    numeric_cols = data.select_dtypes(include=[np.number]).columns.tolist()
+    
+    if not numeric_cols:
+        raise ValueError("No numeric columns found for clustering")
+    
+    # Scale the data
+    scaler = StandardScaler()
+    scaled_data = scaler.fit_transform(data[numeric_cols])
+    
+    # Perform DIANA clustering (using a third-party library or custom implementation)
+    diana = Diana(n_clusters=n_clusters)
+    cluster_labels = diana.fit(scaled_data)
+    
+    # Add cluster labels to the original data
+    result_data = data.copy()
+    result_data['cluster'] = cluster_labels
+    
+    # Calculate evaluation metrics
+    metrics = {}
+    if len(data) > n_clusters:  # Metrics require more samples than clusters
+        try:
+            metrics['silhouette'] = round(silhouette_score(scaled_data, cluster_labels), 3)
+            metrics['intra_cluster'] = round(calculate_intra_cluster_distance(scaled_data, cluster_labels), 3)
+            metrics['inter_cluster'] = round(calculate_inter_cluster_distance(scaled_data, cluster_labels), 3)
+        except Exception as e:
+            print(f"Error calculating clustering metrics: {e}")
+    
+    # Visualize if requested (using custom visualization or dendrogram)
+    if visualize:
+        create_diana_plot(result_data)  # Create a plot for DIANA
+    
+    return result_data, metrics
+
+def show_dendrogram(data, method='agnes', linkage='ward', affinity='euclidean'):
     """
     Show a dendrogram visualization for hierarchical clustering.
     
     Parameters:
     -----------
     data : pandas.DataFrame
-        The data to visualize
+        The data to visualize.
+    method : str, default='agnes'
+        The hierarchical clustering method: 'agnes' for agglomerative, 'diana' for divisive.
     linkage : str, default='ward'
-        Linkage criterion to use: 'ward', 'complete', 'average', 'single'
+        Linkage criterion to use for AGNES: 'ward', 'complete', 'average', 'single'.
+        Ignored if method is 'diana'.
     affinity : str, default='euclidean'
-        Metric used to compute the linkage
+        Metric used to compute the linkage. Ignored if method is 'diana'.
     """
-    from visualizations.cluster_plot import create_dendrogram, display_plot_in_window
+    from visualizations.cluster_plot import create_agnes_dendrogram, create_diana_dendrogram, display_plot_in_window
     
     try:
-        fig = create_dendrogram(data, method=linkage, affinity=affinity, show_plot=False)
-        display_plot_in_window(fig, title=f'Hierarchical Clustering Dendrogram ({linkage} linkage)')
+        if method == 'agnes':
+            fig = create_agnes_dendrogram(data, method=linkage, affinity=affinity, show_plot=False)
+            title = f'AGNES Dendrogram ({linkage} linkage)'
+        elif method == 'diana':
+            fig = create_diana_dendrogram(data, show_plot=False)
+            title = 'DIANA Dendrogram'
+        else:
+            raise ValueError(f"Unsupported hierarchical method: {method}")
+
+        display_plot_in_window(fig, title=title)
+
     except Exception as e:
         import tkinter.messagebox as messagebox
         messagebox.showerror("Error", f"Failed to create dendrogram: {str(e)}")
@@ -419,7 +489,7 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     """
     # Create a new dialog window with a modern look
     dialog = tk.Toplevel(parent)
-    method_name = 'K-means' if method == 'kmeans' else 'PAM' if method == 'pam' else 'DBSCAN' if method == 'dbscan' else 'AGNES'
+    method_name = 'K-means' if method == 'kmeans' else 'PAM' if method == 'pam' else 'DBSCAN' if method == 'dbscan' else 'DIANA' if method == 'diana' else 'AGNES'
     dialog.title(f"{method_name} Clustering")
     dialog.geometry("900x700")
     dialog.resizable(True, True)
@@ -677,6 +747,9 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     elif method == "agnes":
         method_specific_vars['linkage'] = tk.StringVar(value='ward')
         method_specific_vars['affinity'] = tk.StringVar(value='euclidean')
+    elif method == "diana":
+        method_specific_vars['metric'] = tk.StringVar(value='euclidean')
+        method_specific_vars['max_clusters'] = tk.IntVar(value=5)
     
     # Helper function for creating parameter controls
     def create_parameter_row(parent, row, label_text, var, from_val, to_val, tooltip=""):
@@ -778,7 +851,7 @@ def show_clustering_dialog(parent, data, method="kmeans"):
     row_idx = 1
     
     # Number of clusters
-    if method in ["kmeans", "pam", "agnes"]:
+    if method in ["kmeans", "pam", "agnes", "diana"]:
         row_idx = create_parameter_row(
             params_card, row_idx, "Number of clusters:", n_clusters_var, 2, 10,
             "The number of clusters to form as well as the number of centroids to generate."
@@ -821,10 +894,11 @@ def show_clustering_dialog(parent, data, method="kmeans"):
         )
     
     # Random state
-    row_idx = create_parameter_row(
-        params_card, row_idx, "Random state:", random_state_var, 0, 100,
-        "Determines random number generation for centroid initialization."
-    )
+    if method in ['kmeans', 'pam', 'dbscan']:
+        row_idx = create_parameter_row(
+            params_card, row_idx, "Random state:", random_state_var, 0, 100,
+            "Determines random number generation for centroid initialization."
+        )
     
     # Visualization Card
     viz_card = ttk.Frame(settings_content, style='Card.TFrame', padding=15)
@@ -935,6 +1009,13 @@ def show_clustering_dialog(parent, data, method="kmeans"):
                     affinity=method_specific_vars['affinity'].get(),
                     visualize=visualize_var.get()
                 )
+
+            elif method == "diana":
+                clustered_data, metrics = perform_diana_clustering(
+                    filtered_data,
+                    n_clusters=n_clusters_var.get(),
+                    visualize=visualize_var.get()
+                )
             
             # Add the cluster column to the original data
             result_data = data.copy()
@@ -944,14 +1025,21 @@ def show_clustering_dialog(parent, data, method="kmeans"):
             progress_window.destroy()
             
             # For AGNES, offer to show dendrogram
-            if method == "agnes":
+            if method in ['agnes', 'diana']:
                 import tkinter.messagebox as messagebox
                 if messagebox.askyesno("Show Dendrogram", "Would you like to see the hierarchical clustering dendrogram?"):
-                    show_dendrogram(
-                        filtered_data, 
-                        linkage=method_specific_vars['linkage'].get(),
-                        affinity=method_specific_vars['affinity'].get()
-                    )
+                    if method == 'agnes':
+                        show_dendrogram(
+                            filtered_data, 
+                            method='agnes',
+                            linkage=method_specific_vars['linkage'].get(),
+                            affinity=method_specific_vars['affinity'].get()
+                        )
+                    if method == 'diana':
+                        show_dendrogram(
+                            filtered_data,
+                            method='diana',
+                        )
             
             # Store result and close dialog
             result[0] = (result_data, n_clusters_var.get(), metrics)
@@ -1110,6 +1198,33 @@ def show_clustering_dialog(parent, data, method="kmeans"):
         • Higher Silhouette Score indicates better-defined clusters (range -1 to 1).
         • If using ward linkage, you must use euclidean affinity.
         • Hierarchical clustering can be interpreted at different levels of the hierarchy.
+                """)
+            ]
+        elif method == "diana":
+            help_sections = [
+                ("What is DIANA?", 
+                "DIANA (Divisive Analysis Clustering) is a hierarchical clustering algorithm that starts with all data in a single cluster and recursively splits it into smaller clusters."),
+
+                ("Parameters Explained", """
+        • Number of clusters: The final number of clusters to form.
+        • Dissimilarity metric: Determines how dissimilar two observations are (typically Euclidean distance).
+        • Splitting criterion: Determines how the algorithm decides which cluster to split and how (e.g., maximum diameter or average dissimilarity).
+                """),
+
+                ("How It Works", """
+        1. DIANA begins with all data points in one cluster.
+        2. It identifies the cluster with the largest internal dissimilarity (diameter).
+        3. From that cluster, it selects the most dissimilar point and creates a new cluster.
+        4. It then assigns points to the new or original cluster based on their dissimilarities.
+        5. This process is repeated until the specified number of clusters is formed.
+                """),
+
+                ("Tips", """
+        • DIANA is especially good at finding large, distinct clusters first.
+        • Unlike AGNES, which builds up from individual points, DIANA breaks down from the whole.
+        • Works best on datasets with clear separation between groups.
+        • It's slower than AGNES for large datasets due to recursive splitting.
+        • Results are deterministic and do not require a random seed.
                 """)
             ]
         
