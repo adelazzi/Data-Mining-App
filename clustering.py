@@ -451,11 +451,11 @@ def show_dendrogram(data, method='agnes', linkage='ward', affinity='euclidean'):
     affinity : str, default='euclidean'
         Metric used to compute the linkage. Ignored if method is 'diana'.
     """
-    from visualizations.cluster_plot import create_dendrogram, display_plot_in_window
+    from visualizations.cluster_plot import create_agnes_dendrogram, display_plot_in_window
     
     try:
         if method == 'agnes':
-            fig = create_dendrogram(data, method=linkage, affinity=affinity, show_plot=False)
+            fig = create_agnes_dendrogram(data, method=linkage, affinity=affinity, show_plot=False)
             title = f'AGNES Dendrogram ({linkage} linkage)'
         #elif method == 'diana':
         #    fig = create_dendrogram(data, method='diana', show_plot=False)
