@@ -122,6 +122,10 @@ def create_agnes_plot(data, cluster_column='cluster', show_plot=True):
     """Create a visualization of AGNES (Agglomerative Hierarchical Clustering) results."""
     return create_cluster_plot(data, cluster_column, method='AGNES', show_plot=show_plot)
 
+def create_diana_plot(data, cluster_column='cluster', show_plot=True):
+    """Create a visualization of DIANA (Divisive Analysis) clustering results."""
+    return create_cluster_plot(data, cluster_column, method='DIANA', show_plot=show_plot)
+
 def create_dendrogram(data, method='ward', affinity='euclidean', show_plot=True):
     """
     Create a modern, professional dendrogram visualization for hierarchical clustering.
@@ -144,7 +148,6 @@ def create_dendrogram(data, method='ward', affinity='euclidean', show_plot=True)
     """
     import numpy as np
     import matplotlib.pyplot as plt
-    import matplotlib as mpl
     from scipy.cluster.hierarchy import dendrogram, linkage
     from sklearn.preprocessing import StandardScaler
     
