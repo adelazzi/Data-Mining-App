@@ -25,7 +25,8 @@ from classification import (
     train_linear_regression_model,
     train_neural_network_model,
     show_classification_dialog,
-    predict_new_value
+    predict_new_value,
+    export_classification_results_to_csv
 )
 
 # The original implementation of all methods has been moved to separate files

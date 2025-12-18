@@ -76,6 +76,11 @@ class DataVisualizationApp:
         accent_color = '#505050'     # Dark gray for accents
         text_color = '#333333'       # Dark gray for text
         highlight_color = '#4a4a4a'  # Slightly darker for highlights
+        primary_color = '#2c5aa0'    # Blue for primary actions
+        secondary_color = '#718096'  # Medium gray for secondary elements
+        success_color = '#38a169'    # Green for success messages
+        warning_color = '#d69e2e'    # Amber for warnings
+        error_color = '#e53e3e'      # Red for errors
         
         # Apply colors to root window
         self.root.configure(background=bg_color)
@@ -84,6 +89,20 @@ class DataVisualizationApp:
         self.style.configure('TFrame', background=bg_color)
         self.style.configure('TLabel', background=bg_color, foreground=text_color, font=default_font)
         self.style.configure('TButton', font=default_font, padding=6)
+        
+        # Create accent button style
+        self.style.configure('Accent.TButton', 
+                            background=primary_color,
+                            foreground='white',
+                            font=(default_font[0], default_font[1], 'bold'))
+        self.style.map('Accent.TButton',
+                      background=[('active', '#3a6db5'), ('pressed', '#1c4d8c')],
+                      foreground=[('active', 'white'), ('pressed', 'white')])
+        
+        # Create secondary button style
+        self.style.configure('Secondary.TButton', 
+                            background=secondary_color,
+                            foreground='white')
         
         # Header styles - more subtle
         self.style.configure('Header.TFrame', background=accent_color)
@@ -119,6 +138,47 @@ class DataVisualizationApp:
         self.style.map('Treeview', 
                       background=[('selected', '#d0d0d0')],
                       foreground=[('selected', text_color)])
+        
+        # Style for Notebook (tabs)
+        self.style.configure('TNotebook', background=bg_color, borderwidth=0)
+        self.style.configure('TNotebook.Tab', 
+                            background='#e0e0e0', 
+                            foreground=text_color,
+                            padding=(10, 4),
+                            font=default_font)
+        self.style.map('TNotebook.Tab',
+                      background=[('selected', bg_color), ('active', '#d0d0d0')],
+                      foreground=[('selected', primary_color), ('active', text_color)],
+                      expand=[('selected', (0, 0, 0, 2))])
+                      
+        # Improved combobox styling
+        self.style.configure('TCombobox', 
+                           selectbackground=primary_color,
+                           selectforeground='white',
+                           fieldbackground='white',
+                           background='white',
+                           padding=3)
+        
+        # Progressbar styling - modern look
+        self.style.configure('TProgressbar', 
+                           background=primary_color, 
+                           troughcolor='#e0e0e0',
+                           thickness=8,
+                           borderwidth=0)
+        
+        # Message styles for different types of feedback
+        self.style.configure('Success.TLabel', 
+                           background=bg_color,
+                           foreground=success_color, 
+                           font=default_font)
+        self.style.configure('Warning.TLabel', 
+                           background=bg_color,
+                           foreground=warning_color, 
+                           font=default_font)
+        self.style.configure('Error.TLabel', 
+                           background=bg_color,
+                           foreground=error_color, 
+                           font=default_font)
 
     def create_header(self):
         """Create a clean, minimal header for the application"""
@@ -702,7 +762,16 @@ class DataVisualizationApp:
                 # Show metrics in a message box
                 metrics_text = "\n".join([f"{k}: {v}" for k, v in metrics.items()])
                 messagebox.showinfo("Clustering Results", f"DIANA clustering completed with {n_clusters} clusters.\n\nMetrics:\n{metrics_text}")
-
+                
+                # Create visualization if requested
+                if messagebox.askyesno("Visualization", "Would you like to see a visualization of the clustering results?"):
+                    from visualizations.cluster_plot import create_diana_plot
+                    fig = create_diana_plot(self.current_data, cluster_column='cluster', show_plot=False)
+                    
+                    # Show the plot in a window
+                    from visualizations.cluster_plot import display_plot_in_window
+                    display_plot_in_window(fig, title="DIANA Clustering Results", parent=self.root)
+                
                 self.update_status(f"DIANA clustering completed with {n_clusters} clusters.")
                 
         except Exception as e:

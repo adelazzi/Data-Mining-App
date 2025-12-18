@@ -1,0 +1,11 @@
+Issue,File,Description,Priority,Recommendation
+Incomplete Function,/home/adel/Desktop/calcul/Data-mining-S2/visualizations/cluster_plot.py,"The create_diana_plot function is defined but there's no implementation of create_diana_plot in perform_diana_clustering in clustering.py",High,"Complete the implementation for Diana clustering to match with clustering visualization"
+Import Error,/home/adel/Desktop/calcul/Data-mining-S2/main.py,"The main.py imports create_diana_plot but visual implementation doesn't appear to be referenced in the perform_diana_clustering function",Medium,"Ensure proper implementation of DIANA clustering or remove the import if not needed"
+Missing Function,/home/adel/Desktop/calcul/Data-mining-S2/main.py,"perform_diana_clustering is imported but not completed",High,"Complete the implementation of this functionality or remove if not needed"
+Invalid Version,/home/adel/Desktop/calcul/Data-mining-S2/requirements.txt,"Some package versions may not exist (e.g., numpy 2.2.4, matplotlib 3.10.1)",High,"Verify and correct package versions in requirements.txt"
+Missing Import,/home/adel/Desktop/calcul/Data-mining-S2/main.py,"tk is used but not imported",Medium,"Add 'import tkinter as tk' at the top of the file"
+CSV Output,/home/adel/Desktop/calcul/Data-mining-S2/data_preprocessor.py,"No functionality to export preprocessing results to CSV",Medium,"Add function to export all preprocessing results to CSV"
+CSV Output,/home/adel/Desktop/calcul/Data-mining-S2/clustering.py,"No functionality to export clustering results to CSV",Medium,"Add function to export all clustering results to CSV"
+CSV Output,/home/adel/Desktop/calcul/Data-mining-S2/classification.py,"No functionality to export classification results to CSV",Medium,"Add function to export all classification model results to CSV"
+UI Improvement,/home/adel/Desktop/calcul/Data-mining-S2/main.py,"setup_styles method is defined but empty",Low,"Complete the implementation of UI styles"
+Function Definition,/home/adel/Desktop/calcul/Data-mining-S2/main.py,"Many methods are defined but left empty with pass statements",High,"Complete the implementation of these methods or document if they are placeholders"

@@ -69,3 +69,10 @@ python -m pip install -r requirements.txt
 - Contributions are welcome! Feel free to submit issues or pull requests.
 
 
+
+
+//////////////
+python3 -m venv env
+source env/bin/activate
+python -m pip install -r requirements.txt
+python main.py

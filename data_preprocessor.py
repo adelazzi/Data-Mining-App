@@ -1,11 +1,12 @@
 import pandas as pd
 import numpy as np
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, filedialog
 from sklearn import preprocessing
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 import time
+import os
 
 def round_floats(df, decimal_places=6):
     """
@@ -920,3 +921,47 @@ def show_data_statistics(data):
     # Close button
     close_button = ttk.Button(stats_window, text="Close", command=stats_window.destroy)
     close_button.pack(pady=10)
+
+def export_to_csv(data, operation_name="preprocessed", parent_window=None):
+    """
+    Export the data to a CSV file
+    
+    Args:
+        data: DataFrame to export
+        operation_name: String describing the operation performed on the data
+        parent_window: Parent window for file dialog
+        
+    Returns:
+        bool: True if file was saved successfully, False otherwise
+    """
+    if data is None or data.empty:
+        messagebox.showerror("Export Error", "No data to export.")
+        return False
+    
+    try:
+        # Ask for save location
+        initial_dir = os.path.expanduser("~")
+        filename = filedialog.asksaveasfilename(
+            title=f"Save {operation_name.capitalize()} Data",
+            initialdir=initial_dir,
+            defaultextension=".csv",
+            filetypes=[("CSV files", "*.csv"), ("All files", "*.*")],
+            parent=parent_window
+        )
+        
+        if not filename:  # User canceled
+            return False
+        
+        # Save the data
+        data.to_csv(filename, index=False)
+        
+        # Show success message
+        messagebox.showinfo(
+            "Export Successful", 
+            f"Data successfully exported to {os.path.basename(filename)}."
+        )
+        return True
+        
+    except Exception as e:
+        messagebox.showerror("Export Error", f"Failed to export data: {str(e)}")
+        return False
